@@ -11,60 +11,83 @@ library(dplyr)
 library(tidyverse)
 library(caret)
 library(ggplot2)
+library(here)
+library(reshape2)
 ```
 
 
 ```{r load_and_filter_data, include=FALSE}
-mm_data <- read.csv("~/Code/r/STA3310/STAFinal/mm_data.csv")
+mm_data <- read.csv(file.path(here(), "cbb.csv"))
 head(mm_data)
 
-# filter by relavent years (might need to be higher)
-mm_data_filtered <- mm_data %>% filter(Season >= 2015)
+# filter by relavent years and remove teams that didn't participate (might need to be higher)
+mm_data_filtered <- mm_data %>% filter(YEAR >= 2015 & POSTSEASON != 'NA')
 
-# add a win outcome variable
-mm_data_filtered <- mm_data_filtered %>% 
-  mutate(WinOutcome = ifelse(Post.Season.Tournament == "March Madness", 1, 0))
-mm_data_filtered
+# convert postseaon variable to a number
+convert_postseason <- function(postseason) {
+  case_when(
+    postseason == "Champions" ~ 7,   # National Champions get the highest value
+    postseason == "2ND" ~ 6,         
+    postseason == "F4" ~ 5,         
+    postseason == "E8" ~ 4,          
+    postseason == "R32" ~ 3,         
+    postseason == "R64" ~ 2,
+    postseason == "R68" ~ 1,
+    TRUE ~ 0                         # Any other case or missing value
+  )
+}
+
+# apply the conversion to create a new column
+mm_data_filtered <- mm_data_filtered %>%
+  mutate(POSTSEASON_NUMERIC = convert_postseason(POSTSEASON))
+
 ```
 
+```{r correlations}
+correlation_vars <- mm_data_filtered %>%
+  select(POSTSEASON_NUMERIC, ADJOE, ADJDE, BARTHAG, EFG_O, EFG_D, 
+         TOR, TORD, ORB, DRB, FTR, FTRD, X2P_O, X2P_D, 
+         X3P_O, X3P_D, ADJ_T, WAB, W)
 
+# Compute correlation matrix
+cor_matrix <- cor(correlation_vars, use = "complete.obs")
+
+# Sort correlations with POSTSEASON_NUMERIC
+postseason_correlations <- cor_matrix["POSTSEASON_NUMERIC", ]
+sorted_correlations <- sort(abs(postseason_correlations), decreasing = TRUE)
+
+sorted_correlations
+```
 ```{r visuals} 
-# distriubtion of Adjusted Offensive Efficiency
-ggplot(data_model, aes(x = Adjusted.Offensive.Efficiency, fill = as.factor(WinOutcome))) +
-  geom_density(alpha = 0.5) +
-  labs(title = "Distribution of Offensive Efficiency by Outcome",
-       x = "Adjusted Offensive Efficiency", fill = "Win Outcome") +
-  theme_minimal()
-
+# include some visuals here
 ```
 
 ```{r model, include=FALSE}
-# Select relevant columns
-data_model <- mm_data_filtered %>% 
-  select(WinOutcome, Adjusted.Offensive.Efficiency, Adjusted.Tempo.Rank, Net.Rating, Seed)
-
-# Handle missing values
-data_model <- na.omit(model)
-
-# Split into training and test sets
+data_model <- mm_data_filtered %>% select(
+  WAB, W, ADJOE, BARTHAG, ADJDE, EFG_D, X2P_D, EFG_O, POSTSEASON_NUMERIC
+)
+data_model
+# split into training and test sets
 set.seed(123)
-trainIndex <- createDataPartition(data_model$WinOutcome, p = 0.8, list = FALSE)
+trainIndex <- createDataPartition(data_model$POSTSEASON_NUMERIC, p = 0.8, list = FALSE)
 train <- data_model[trainIndex, ]
 test <- data_model[-trainIndex, ]
 
-# Fit a logistic regression model
-model <- glm(WinOutcome ~ ., data = train, family = binomial)
 
-# Summary of the model
-summary(model)
+regression_model <- lm(POSTSEASON_NUMERIC ~ ., data = train)
+
+# Summary of the regression model
+summary(regression_model)
+
+# from this it looks like WAB, W, ADJOE, BARTHAG, ADJDE, and EFG_0 are statistically significant (p < 0.05)
 
 
-# Predictions and evaluation
-predictions <- predict(model, test, type = "response")
+# perform predictions and round
+predictions <- predict(regression_model, test, type = "response")
 predicted_classes <- ifelse(predictions > 0.5, 1, 0)
 
-# Confusion matrix
-confusionMatrix(as.factor(predicted_classes), as.factor(test$WinOutcome))
+# confusion matrix
+confusionMatrix(as.factor(predicted_classes), as.factor(test$POSTSEASON_NUMERIC))
 ```
 
 
@@ -73,7 +96,7 @@ confusionMatrix(as.factor(predicted_classes), as.factor(test$WinOutcome))
 
 
 # matrix data
-conf_mat <- confusionMatrix(as.factor(predicted_classes), as.factor(test$WinOutcome))
+conf_mat <- confusionMatrix(as.factor(predicted_classes), as.factor(test$POSTSEASON_NUMERIC))
 cm_table <- as.data.frame(conf_mat$table)
 
 # plot confusion matrix
