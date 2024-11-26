@@ -1,0 +1,86 @@
+---
+title: "FinalMD"
+author: "Shepard Berry"
+date: "2024-11-25"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+library(tidyverse)
+library(caret)
+library(ggplot2)
+```
+
+
+```{r load_and_filter_data, include=FALSE}
+mm_data <- read.csv("~/Code/r/STA3310/STAFinal/mm_data.csv")
+head(mm_data)
+
+# filter by relavent years (might need to be higher)
+mm_data_filtered <- mm_data %>% filter(Season >= 2015)
+
+# add a win outcome variable
+mm_data_filtered <- mm_data_filtered %>% 
+  mutate(WinOutcome = ifelse(Post.Season.Tournament == "March Madness", 1, 0))
+mm_data_filtered
+```
+
+
+```{r visuals} 
+# distriubtion of Adjusted Offensive Efficiency
+ggplot(data_model, aes(x = Adjusted.Offensive.Efficiency, fill = as.factor(WinOutcome))) +
+  geom_density(alpha = 0.5) +
+  labs(title = "Distribution of Offensive Efficiency by Outcome",
+       x = "Adjusted Offensive Efficiency", fill = "Win Outcome") +
+  theme_minimal()
+
+```
+
+```{r model, include=FALSE}
+# Select relevant columns
+data_model <- mm_data_filtered %>% 
+  select(WinOutcome, Adjusted.Offensive.Efficiency, Adjusted.Tempo.Rank, Net.Rating, Seed)
+
+# Handle missing values
+data_model <- na.omit(model)
+
+# Split into training and test sets
+set.seed(123)
+trainIndex <- createDataPartition(data_model$WinOutcome, p = 0.8, list = FALSE)
+train <- data_model[trainIndex, ]
+test <- data_model[-trainIndex, ]
+
+# Fit a logistic regression model
+model <- glm(WinOutcome ~ ., data = train, family = binomial)
+
+# Summary of the model
+summary(model)
+
+
+# Predictions and evaluation
+predictions <- predict(model, test, type = "response")
+predicted_classes <- ifelse(predictions > 0.5, 1, 0)
+
+# Confusion matrix
+confusionMatrix(as.factor(predicted_classes), as.factor(test$WinOutcome))
+```
+
+
+```{r model_accuracy_heatmap}
+# shows the predicted vs actual values
+
+
+# matrix data
+conf_mat <- confusionMatrix(as.factor(predicted_classes), as.factor(test$WinOutcome))
+cm_table <- as.data.frame(conf_mat$table)
+
+# plot confusion matrix
+ggplot(cm_table, aes(x = Prediction, y = Reference, fill = Freq)) +
+  geom_tile(color = "white") +
+  geom_text(aes(label = Freq), color = "black", size = 5) +
+  scale_fill_gradient(low = "blue", high = "red") +
+  labs(title = "Confusion Matrix Heatmap", x = "Predicted", y = "Actual") +
+  theme_minimal()
+```
