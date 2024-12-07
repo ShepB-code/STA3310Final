@@ -21,7 +21,7 @@ mm_data <- read.csv(file.path(here(), "cbb.csv"))
 head(mm_data)
 
 # filter by relavent years and remove teams that didn't participate (might need to be higher)
-mm_data_filtered <- mm_data %>% filter(YEAR >= 2015 & POSTSEASON != 'NA')
+mm_data_filtered <- mm_data %>% filter(YEAR >= 2015 & POSTSEASON != "N/A")
 
 # convert postseaon variable to a number
 convert_postseason <- function(postseason) {
@@ -33,13 +33,19 @@ convert_postseason <- function(postseason) {
     postseason == "R32" ~ 3,         
     postseason == "R64" ~ 2,
     postseason == "R68" ~ 1,
-    TRUE ~ 0                         # Any other case or missing value
+    #TRUE ~ 0                         # Any other case or missing value
   )
 }
+
+mm_data_filtered
 
 # apply the conversion to create a new column
 mm_data_filtered <- mm_data_filtered %>%
   mutate(POSTSEASON_NUMERIC = convert_postseason(POSTSEASON))
+
+# Effective Field Goals Allowed (EFG_D) - negative correlation to wins
+# Effective Field Goals Shot (EFG_O)- positive correlation
+# Turn over percentage allowed (TOR) - negative correlation
 
 ```
 
@@ -59,16 +65,18 @@ sorted_correlations <- sort(abs(postseason_correlations), decreasing = TRUE)
 sorted_correlations
 ```
 ```{r visuals} 
-# include some visuals here
+# correlation plots for ADJOE, ADJDE, BARTHAG, EFG_O, EFG_D, W, and WAB
+
 ```
 
 ```{r model, include=FALSE}
 data_model <- mm_data_filtered %>% select(
-  WAB, W, ADJOE, BARTHAG, ADJDE, EFG_D, X2P_D, EFG_O, POSTSEASON_NUMERIC
+  WAB, W, ADJOE, BARTHAG, ADJDE, EFG_O, POSTSEASON_NUMERIC
 )
 data_model
 # split into training and test sets
 set.seed(123)
+data_model <- data_model[!is.na(data_model$POSTSEASON_NUMERIC), ]
 trainIndex <- createDataPartition(data_model$POSTSEASON_NUMERIC, p = 0.8, list = FALSE)
 train <- data_model[trainIndex, ]
 test <- data_model[-trainIndex, ]
