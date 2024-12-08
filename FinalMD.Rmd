@@ -180,11 +180,6 @@ actual_classes <- factor(test$POSTSEASON_NUMERIC, levels = 1:8)
 
 # create the confusion matrix
 conf_matrix <- confusionMatrix(predicted_classes, actual_classes)
-
-# display the confusion matrix
-print(conf_matrix)
-
-# convert confusion matrix to data frame for plotting
 conf_matrix_df <- as.data.frame(as.table(conf_matrix))
 
 # plot the confusion matrix using ggplot2
@@ -195,5 +190,6 @@ ggplot(conf_matrix_df, aes(x = Prediction, y = Reference, fill = Freq)) +
   labs(x = "Predicted", y = "Actual", title = "Confusion Matrix") +
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
 ```
 
