@@ -151,7 +151,9 @@ summary(stepwise_model)
 
 # select refined data and train final model
 refined_data <- mm_data_filtered %>%
-  dplyr::select(W, ADJOE, ADJDE, BARTHAG, EFG_O, TOR, TORD, ORB, DRB, FTR, X2P_D, X3P_D, WAB, POSTSEASON_NUMERIC)
+  dplyr::select(W, ADJOE, ADJDE, BARTHAG, EFG_O, TOR, TORD, ORB, DRB, FTR, X3P_O, X2P_D, X3P_D, WAB, POSTSEASON_NUMERIC)
+
+#   dplyr::select(W, ADJOE, ADJDE, BARTHAG, EFG_O, TOR, TORD, ORB, DRB, FTR, X3P_O, X2P_D, X3P_D, WAB, POSTSEASON_NUMERIC)
 
 refined_data <- refined_data[!is.na(refined_data$POSTSEASON_NUMERIC), ]
 trainIndex <- createDataPartition(refined_data$POSTSEASON_NUMERIC, p = 0.8, list = FALSE)
@@ -159,7 +161,7 @@ train <- refined_data[trainIndex, ]
 test <- refined_data[-trainIndex, ]
 
 
-new_regression_model <- lm(POSTSEASON_NUMERIC ~ ., data = train)
+new_regression_model <- glm(POSTSEASON_NUMERIC ~ ., data = train, family="poisson")
 
 summary(new_regression_model)
 
@@ -188,8 +190,60 @@ ggplot(conf_matrix_df, aes(x = Prediction, y = Reference, fill = Freq)) +
   geom_text(aes(label = Freq), color = "white", size = 6) +
   scale_fill_gradient(low = "white", high = "blue") +
   labs(x = "Predicted", y = "Actual", title = "Confusion Matrix") +
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle = 1, hjust = 1))
+  theme_minimal()
+```
 
+```{r rlm_robust_model}
+# use an RLM to better handle outliers 
+robust_model <- rlm(POSTSEASON_NUMERIC ~ ., data=train, family="poisson")
+
+# compare residuals
+residuals_data <- data.frame(
+  Fitted = c(fitted(new_regression_model), fitted(robust_model)),
+  Residuals = c(residuals(new_regression_model), residuals(robust_model)),
+  Model = rep(c("Linear Model (new_regression_model)", "Robust Model"), each = nrow(train))
+)
+ggplot(residuals_data, aes(x = Fitted, y = Residuals, color = Model)) +
+  geom_point(alpha = 0.7) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
+  labs(title = "Residuals Comparison: Linear vs Robust Model",
+       x = "Fitted Values",
+       y = "Residuals") +
+  scale_color_manual(values = c("Linear Model (new_regression_model)" = "blue", "Robust Model" = "orange")) +
+  theme_minimal()
+
+# - The robust model residuals are generally better distributed and less sensitive to outliers, which is a key benefit of robust regression.
+# - The spread of residuals seems more uniform compared to the linear regression residuals.
+
+
+# see how the RLM model performs
+
+# perform predictions and round
+predictions <- predict(robust_model, test, type = "response")
+
+# convert predictions to discrete values (1 to 8)
+predicted_classes <- round(predictions)  # Round to nearest integer
+
+# ensure predictions are within the range of 1-8 
+predicted_classes <- pmin(pmax(predicted_classes, 1), 8)
+
+# ensure that both predicted and actual classes have the same levels
+predicted_classes <- factor(predicted_classes, levels = 1:8)
+actual_classes <- factor(test$POSTSEASON_NUMERIC, levels = 1:8)
+
+# create the confusion matrix
+conf_matrix <- confusionMatrix(predicted_classes, actual_classes)
+conf_matrix_df <- as.data.frame(as.table(conf_matrix))
+
+# plot the confusion matrix using ggplot2
+ggplot(conf_matrix_df, aes(x = Prediction, y = Reference, fill = Freq)) +
+  geom_tile() +
+  geom_text(aes(label = Freq), color = "white", size = 6) +
+  scale_fill_gradient(low = "white", high = "blue") +
+  labs(x = "Predicted", y = "Actual", title = "Confusion Matrix") +
+  theme_minimal()
+
+
+# the RLM is slightly better at predicting later rounds, which makes sense because it's better at handling outliers.
 ```
 
