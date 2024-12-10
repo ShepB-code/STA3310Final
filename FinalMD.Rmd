@@ -133,7 +133,7 @@ train <- data_model[trainIndex, ]
 test <- data_model[-trainIndex, ]
 
 
-regression_model <- lm(POSTSEASON_NUMERIC ~ ., data = train)
+regression_model <- glm(POSTSEASON_NUMERIC ~ ., data = train, family="poisson")
 
 # multicollinearity
 vif(regression_model)
@@ -189,7 +189,7 @@ ggplot(conf_matrix_df, aes(x = Prediction, y = Reference, fill = Freq)) +
   scale_fill_gradient(low = "white", high = "blue") +
   labs(x = "Predicted", y = "Actual", title = "Confusion Matrix") +
   theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  theme(axis.text.x = element_text(angle = 1, hjust = 1))
 
 ```
 
